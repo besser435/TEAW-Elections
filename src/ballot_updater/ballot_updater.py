@@ -4,18 +4,25 @@ import sqlite3
 import requests
 import os
 import csv
+import time
+import traceback
 
-import src.TEAW_E_secrets as TEAW_E_secrets
+import TEAW_ballot_secrets
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
 
 
 CSV_FILE = "_ballots.csv"
 DB_FILE = "../../db/TEAW_E_1.db"
 
+
 def get_sheet() -> None:
-    request = requests.get(TEAW_E_secrets.GOOGLE_SHEET_URL)
+    """
+    Fetches the
+    ballot data from the Google Sheet and save it locally as a CSV file.
+    """
+
+    request = requests.get(TEAW_ballot_secrets.GOOGLE_SHEET_URL)
     if request.status_code == 200:
         with open(CSV_FILE, "w") as file:
             file.write(request.text.replace("\n", ""))
@@ -23,7 +30,15 @@ def get_sheet() -> None:
         raise Exception("Failed to get Google Sheet")
 get_sheet()
 
+
 def process_ballots():
+    """
+    Process the ballots from the CSV file:
+    - Validate voter IDs against the 'voters' table.
+    - Remove old ballots for re-voting voters.
+    - Insert the new ballots into the database.
+    """
+
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
@@ -50,13 +65,17 @@ def process_ballots():
         cursor.execute("DELETE FROM ballots WHERE voter_id = ?", (voter_id,)) # remove old vote if voter has already voted
 
 
-        # NOTE: Ballot insertion
-        for candidate, rank in ballot.items():
-            if candidate != "Timestamp" and candidate != "Voter ID":
-                cursor.execute("""
-                    INSERT INTO ballots (voter_id, candidate, rank)
-                    VALUES (?, ?, ?)
-                """, (voter_id, candidate, int(rank) if rank else None))
+        # # NOTE: Ballot insertion
+        for rank, candidate in ballot.items():
+            if rank not in ["Timestamp", "Voter ID"] and candidate.strip():
+                try:
+                    rank_int = int(rank)  # The rank is derived from the column position. In the election, the lower the rank, the higher the preference.
+                    cursor.execute("""
+                        INSERT INTO ballots (voter_id, candidate, rank)
+                        VALUES (?, ?, ?)
+                    """, (voter_id, candidate, rank_int))
+                except ValueError:
+                    print(f"Invalid rank or candidate: {rank} -> {candidate}")
 
     conn.commit()
     conn.close()
@@ -64,9 +83,14 @@ def process_ballots():
 
 
 if __name__ == "__main__":
-    try:
-        get_sheet()
-        process_ballots()
-        print("Ballots processed successfully.")
-    except Exception as e:
-        print(f"Error: {e}")
+    while True: # This will redo everything every loop iteration. not ideal, but it works
+        try:
+            get_sheet()
+            process_ballots()
+
+            time.sleep(60)
+        except Exception:
+            print(f"{traceback.format_exc()}")
+            
+        except KeyboardInterrupt:
+            break
