@@ -37,6 +37,7 @@ def initialize_database():
     print("Database initialized")
     db.close()
 
+
 def populate_voters(voter_data):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -53,8 +54,7 @@ def populate_voters(voter_data):
     print("Voters populated")
 
 
-
-def drop(table):
+def drop(table):    # mainly for testing
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
@@ -68,12 +68,13 @@ def drop(table):
 if __name__ == "__main__":
     #drop("voters")
     #drop("ballots")
-    initialize_database()
+    #initialize_database()
 
 
     voter_data = [
-        ("1", "username_1", "1732268289"),
-        ("2", "username_2", "1732268289"),
-        ("3", "username_3", "1732268289"),
+        ("1111", "username_1", "1732268289"),
+        ("2222", "username_2", "1732268289")
     ]
-    #populate_voters()
+    populate_voters(voter_data)
+
+    pass
