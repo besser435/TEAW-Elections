@@ -15,6 +15,7 @@ def initialize_database():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS voters (
             voter_id TEXT PRIMARY KEY,
+            discord_id TEXT,
             discord_username TEXT,
             time_registered TEXT
         );
@@ -44,8 +45,8 @@ def populate_voters(voter_data):
 
     for voter in voter_data:
         cursor.execute("""
-            INSERT INTO voters (voter_id, discord_username, time_registered)
-            VALUES (?, ?, ?)
+            INSERT INTO voters (voter_id, discord_id, discord_username, time_registered)
+            VALUES (?, ?, ?, ?)
         """, voter)
 
     conn.commit()
@@ -66,15 +67,15 @@ def drop(table):    # mainly for testing
 
 
 if __name__ == "__main__":
-    #drop("voters")
-    #drop("ballots")
-    #initialize_database()
+    drop("voters")
+    drop("ballots")
+    initialize_database()
 
 
     voter_data = [
-        ("1111", "username_1", "1732268289"),
-        ("2222", "username_2", "1732268289")
+        ("1111", "123123123123", "UserOne", "1732268289"),
+        ("2222", "345345345345", "UserTwo", "1732268289")
     ]
-    populate_voters(voter_data)
+    #populate_voters(voter_data)
 
     pass

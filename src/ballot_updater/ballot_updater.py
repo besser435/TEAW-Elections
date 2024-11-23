@@ -52,15 +52,16 @@ def process_ballots():
         
         # NOTE: Ballot validation
         # Check if the voter is in the 'voters' table (note, does not check if the ID is valid, only that it is in the table)
-        cursor.execute("SELECT discord_username, time_registered FROM voters WHERE voter_id = ?", (voter_id,))
+        cursor.execute("SELECT discord_id, discord_username, time_registered FROM voters WHERE voter_id = ?", (voter_id,))
         voter_data = cursor.fetchone()
 
         if voter_data is None:
             print(f"Invalid voter ID: {voter_id}, ballot discarded.")
             continue
 
-        discord_username, time_registered = voter_data
-        print(f"Processing ballot for voter {voter_id} ({discord_username}), registered at {time_registered}.")
+        discord_id, discord_username, time_registered = voter_data
+        print(f"Processing ballot for voter {voter_id} ({discord_username}, {discord_id}), registered at {time_registered}.")
+
 
         cursor.execute("DELETE FROM ballots WHERE voter_id = ?", (voter_id,)) # remove old vote if voter has already voted
 
