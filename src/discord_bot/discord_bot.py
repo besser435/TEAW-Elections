@@ -22,11 +22,15 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-# Message embeds
+# NOTE Message embeds
 def create_voter_id_message(voter_id: str) -> discord.Embed:
     embed = discord.Embed(
         title="Voter Registration Successful",
-        description=f"You have successfully registered to vote in the TEAW Presidential Election!\nYou can vote [here]({VOTE_FORM_URL}).",
+        description=f"""
+        You have successfully registered to vote in the TEAW Presidential Election.
+        
+        You can vote [here]({VOTE_FORM_URL}).
+        """,
         color=discord.Color.green()
     )
     embed.add_field(name="Your Voter ID", value=f"`{voter_id}`", inline=False)
@@ -38,7 +42,6 @@ def create_voter_id_message(voter_id: str) -> discord.Embed:
     embed.set_thumbnail(url="https://emojicdn.elk.sh/🎉")
     embed.set_footer(text="Thank you for keeping TEAW democratic!")
     return embed
-
 
 def create_bad_salt_message() -> discord.Embed:
     embed = discord.Embed(
@@ -52,13 +55,17 @@ def create_bad_salt_message() -> discord.Embed:
     )
     return embed
 
+def create_vote_notification(ballot) -> discord.Embed:
+    # For successful_vote_notification()
+    pass
 
-# Helper functions
+
+# NOTE Helper functions
 def create_voter_id(user_id, time_registered, salt):
     return hashlib.sha256(f"{user_id}{time_registered}{salt}".encode()).hexdigest()[:8]
 
 
-# Commands
+# NOTE Commands
 @bot.tree.command(name="register", description="Registers you to vote.")
 @app_commands.describe(voter_salt="A unique identifier for voter registration (minimum 4 characters). Do not share this value.")
 async def register(interaction: discord.Interaction, voter_salt: str):
@@ -70,36 +77,42 @@ async def register(interaction: discord.Interaction, voter_salt: str):
     discord_username = interaction.user.name # NOTE: This is purely for human reference, it should not be used for anything secure. Usernames can be changed.
     time_registered = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
+    with sqlite3.connect(DB_FILE) as conn:
+        cursor = conn.cursor()
 
-    try:
-        cursor.execute("SELECT * FROM voters WHERE discord_id = ?", (discord_id,))
-        existing_voter = cursor.fetchone()
+        try:
+            cursor.execute("SELECT * FROM voters WHERE discord_id = ?", (discord_id,))
+            existing_voter = cursor.fetchone()
 
-        if existing_voter:
-            embed = create_voter_id_message(existing_voter[0])
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        else:   # TODO: should maybe just allow users to create a new voter ID if their old one leaked or something. Ensure to delete the old one.
-            new_voter_id = create_voter_id(discord_id, time_registered, voter_salt)
+            if existing_voter:
+                embed = create_voter_id_message(existing_voter[0])
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+            else:   # TODO: should maybe just allow users to create a new voter ID if their old one leaked or something. Ensure to delete the old one.
+                new_voter_id = create_voter_id(discord_id, time_registered, voter_salt)
 
-            cursor.execute(
-                "INSERT INTO voters (voter_id, discord_id, discord_username, time_registered) VALUES (?, ?, ?, ?)",
-                (new_voter_id, discord_id, discord_username, time_registered),
-            )
-            conn.commit()
+                cursor.execute(
+                    "INSERT INTO voters (voter_id, discord_id, discord_username, time_registered) VALUES (?, ?, ?, ?)",
+                    (new_voter_id, discord_id, discord_username, time_registered),
+                )
+                conn.commit()
 
-            embed = create_voter_id_message(new_voter_id)
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-    except Exception as e:
-        logger.error(f"Error registering voter: {e}")
-        await interaction.response.send_message("An error occurred while registering. Please try again later.", ephemeral=True)
-    finally:
-        conn.close()
+                embed = create_voter_id_message(new_voter_id)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error registering voter: {e}")
+            await interaction.response.send_message("An error occurred while registering. Please try again later.", ephemeral=True)
 
+
+# NOTE Tasks
+@tasks.loop(seconds=60)
 async def update_message():
     # This will post a message in a channel if it does not exist. 
-    # Tt will then edit the message as the database gets updates.
+    # It will then edit the message as the database gets updates.
+    pass
+
+async def successful_vote_notification():
+    # This will DM the user who voted to confirm their vote.
+    # It will reply with their ballot.
     pass
 
 
@@ -109,5 +122,7 @@ async def on_ready():
     synced = await bot.tree.sync()
     print(f"Synced {len(synced)} commands")
     logging.info(f"Logged in as {bot.user.name}")
+
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="the TEAW Election"))
 
 bot.run(BOT_TOKEN)
