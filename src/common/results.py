@@ -1,5 +1,8 @@
 import sqlite3
 import os
+from collections import defaultdict
+from Candidate import Candidate
+
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -7,6 +10,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 DB_FILE = "../../db/TEAW_E_1.db"
 
 
+# kind of useless given total_raw_candidate_points functions. maybe delete?
 def total_candidate_votes(db_file=DB_FILE) -> dict:
     """
     Returns the total amount of votes for each candidate/party.
@@ -65,16 +69,15 @@ def total_raw_candidate_points(db_file=DB_FILE) -> dict:
             print(f"Error retrieving raw candidate points: {e}")
             return {}
 
-
 def determine_winner(db_file=DB_FILE) -> str:
     """
-    Implements the Ranked Choice Voting (RCV) algorithm to determine the winner.
+    Implements the Ranked Choice Voting (RCV) algorithm using an enhanced Candidate class.
     """
     with sqlite3.connect(db_file) as conn:
         cursor = conn.cursor()
 
         try:
-            # Step 1: Load all ballots into a dictionary grouped by voter
+            # Load all ballots
             cursor.execute("""
                 SELECT voter_id, rank, candidate
                 FROM ballots
@@ -89,39 +92,45 @@ def determine_winner(db_file=DB_FILE) -> str:
                     voter_ballots[voter_id] = []
                 voter_ballots[voter_id].append(candidate)
 
-            # Step 2: Start the RCV process
-            active_candidates = set(candidate for _, _, candidate in ballots)
+            # Initialize candidates
+            candidates = {candidate: Candidate(candidate) for _, _, candidate in ballots}
+
 
             while True:
-                # Count first-choice votes
-                first_choice_counts = {candidate: 0 for candidate in active_candidates}
+                # Reset votes
+                for candidate in candidates.values():
+                    candidate.reset_votes()
+
+
+                    print(candidate)
+                    
+
+                # Count first-choice votes for active candidates
                 for ballot in voter_ballots.values():
-                    if ballot and ballot[0] in active_candidates:
-                        first_choice_counts[ballot[0]] += 1
+                    if ballot and candidates[ballot[0]].is_active():
+                        candidates[ballot[0]].add_votes(1)
 
-                total_votes = sum(first_choice_counts.values())
-
-                # Check for majority
-                for candidate, count in first_choice_counts.items():
-                    if count > total_votes / 2:
-                        return f"The winner is {candidate} with {count} votes!"
-
-                # If no majority, find the candidate with the fewest first-choice votes
-                min_votes = min(first_choice_counts.values())
-                candidates_to_eliminate = [c for c, v in first_choice_counts.items() if v == min_votes]
+                # Check for a majority
+                total_votes = sum(c.votes for c in candidates.values() if c.is_active())
+                for candidate in candidates.values():
+                    if candidate.is_active() and candidate.votes > total_votes / 2:
+                        return f"The default majority winner is {candidate.name} with {candidate.votes} votes!"
 
                 # Eliminate the candidate(s) with the fewest votes
+                min_votes = min(c.votes for c in candidates.values() if c.is_active())
+                candidates_to_eliminate = [c for c in candidates.values() if c.is_active() and c.votes == min_votes]
+
                 for candidate in candidates_to_eliminate:
-                    active_candidates.remove(candidate)
+                    candidate.eliminate()
 
-                # Reassign votes for eliminated candidates
+                # Redistribute votes
                 for voter_id, ballot in voter_ballots.items():
-                    voter_ballots[voter_id] = [c for c in ballot if c in active_candidates]
+                    voter_ballots[voter_id] = [c for c in ballot if candidates[c].is_active()]
 
-                # If only one candidate is left, they are the winner
+                # If only one candidate remains, declare them the winner
+                active_candidates = [c for c in candidates.values() if c.is_active()]
                 if len(active_candidates) == 1:
-                    winner = next(iter(active_candidates))
-                    return f"The winner is {winner} by default, as all other candidates were eliminated."
+                    return f"The winner is {active_candidates[0].name}, as all other candidates were eliminated."
 
         except Exception as e:
             print(f"Error during RCV process: {e}")
@@ -129,15 +138,14 @@ def determine_winner(db_file=DB_FILE) -> str:
 
 
 
+print(determine_winner())
 
 
-
-#print(total_candidate_votes())
 
 # Pretty print the raw points
-raw_points = total_raw_candidate_points()
-for candidate, points in raw_points.items():
-    print(f"{candidate}:")
-    for rank, count in points.items():
-        print(f"    Rank {rank}: {count}")
-    print()
+# raw_points = total_raw_candidate_points()
+# for candidate, points in raw_points.items():
+#     print(f"{candidate}:")
+#     for rank, count in points.items():
+#         print(f"    Rank {rank}: {count}")
+#     print()
