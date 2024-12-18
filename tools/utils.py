@@ -53,6 +53,21 @@ def populate_voters(db_file=DB_FILE, voter_data=None):
         print("Voters populated")
 
 
+def populate_ballots(db_file=DB_FILE, ballot_data=None):
+    with sqlite3.connect(db_file) as conn:
+        cursor = conn.cursor()
+
+        for ballot in ballot_data:
+            cursor.execute("""
+                INSERT INTO ballots (voter_id, candidate, rank)
+                VALUES (?, ?, ?)
+            """, ballot)
+
+        conn.commit()
+
+        print("Ballots populated")
+
+
 def drop(db_file=DB_FILE, table=None):
     with sqlite3.connect(db_file) as conn:
         cursor = conn.cursor()
@@ -64,15 +79,28 @@ def drop(db_file=DB_FILE, table=None):
 
 
 if __name__ == "__main__":
-    #drop("voters")
-    #drop("ballots")
+    #drop(table="voters")
+    #drop(table="ballots")
     #initialize_database()
 
 
     voter_data = [
-        ("1111", "123123123123", "UserOne", "2024-11-27T01:48:05Z"),
+        ("1111", "1111", "UserOne", "2024-11-27T01:48:05Z"),
+        ("2222", "2222", "UserTwo", "2024-11-27T01:48:05Z"),
+        ("3333", "3333", "UserThree", "2024-11-27T01:48:05Z")
     ]
+    #populate_voters(voter_data=voter_data)
 
-    populate_voters(voter_data=voter_data)
 
-    pass
+    ballot_data = [
+        #("1111", "Green Party", 1),
+        #("2222", "Green Party", 1),
+        #("3333", "Slommy Party ", 1),
+        ("4444", "Slommy Party ", 5),
+
+    ]
+    
+    populate_ballots(ballot_data=ballot_data)
+
+
+
