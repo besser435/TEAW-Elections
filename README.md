@@ -21,5 +21,5 @@ Pull requests are welcomed, but may be rejected at the election committee's disc
 
 ## TODO
 - Add proper docs, including how to set up the Google Form
-- Add Discord bot
+- Discord bot vote notifications and current result command
 - Add RCV algorithm
