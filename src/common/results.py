@@ -55,20 +55,6 @@ class Candidate:
         return f"{self.name} {self.point_totals})"
 
 
-
-class Candidate:
-    def __init__(self, name: str):
-        self.name = name
-        self.eliminated = False
-
-        # autism
-        self.point_totals = {}
-
-    def __repr__(self):
-        return f"{self.name} {self.point_totals})"
-
-
-
 def determine_winner(db_file=DB_FILE) -> str:
     """
     Returns a winner based on the RCV algorithm.
@@ -86,7 +72,7 @@ def determine_winner(db_file=DB_FILE) -> str:
 
 
         candidates = [
-
+            
         ]
 
 
