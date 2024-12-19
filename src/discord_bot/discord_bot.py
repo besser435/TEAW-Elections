@@ -27,7 +27,7 @@ DB_FILE = "../../db/teaw_election_1.db"
 UPDATE_MESSAGE_FILE = "../../db/update_message.txt"
 ROLE_ID = 1319149115543781489   # I voted role for Dec. 2024 election
 UPDATE_CHANNEL_ID = 1319130252739608727
-
+ELECTION_END_TIME = 1735369140  # This is when the program will kill itself
 
 intents = discord.Intents.all()
 intents.members = True
@@ -70,11 +70,27 @@ def create_bad_salt_message() -> discord.Embed:
     )
     return embed
 
+def create_invalid_voter_id_message() -> discord.Embed:
+    embed = discord.Embed(
+        title="Invalid Voter ID",
+        description="Your voter ID is invalid. Please register to vote first with `/register`.",
+        color=discord.Color.red()
+    )
+    return embed
+
+def create_invalid_candidate_message() -> discord.Embed:
+    embed = discord.Embed(
+        title="Invalid Candidate",
+        description="You have entered an invalid candidate. Please choose from the provided options.",
+        color=discord.Color.red()
+    )
+    return embed
+
 def create_vote_notification(time_voted) -> discord.Embed:
     embed = discord.Embed(
         title="Vote Cast",
         description=f"""
-        You have successfully cast your ballot to vote in the TEAW Presidential Election .
+        You have successfully cast your ballot to vote in the TEAW Presidential Election.
         
         Repeat votes will overwrite your previous vote.
         """,
@@ -87,19 +103,26 @@ def create_vote_notification(time_voted) -> discord.Embed:
     return embed
 
 def election_results_message(results: dict) -> discord.Embed:
-    update_time = f"<t:{int(time.time())}:R>"
-
     embed = discord.Embed(
-        title=f"TEAW Presidential Election Results as of {update_time}",
-        description="Updates every 5 minutes. \nVotes will stop being counted <t:1735369140:R>!",
+        title=f"TEAW Presidential Election Results as of <t:{int(time.time())}:R>",
+        description=f"Updates every 5 minutes. \nThe election will end <t:{ELECTION_END_TIME}:R>!",
         color=discord.Color.blue()
     )
 
-    for party, votes in results.items():
-        embed.add_field(name=f"{party} party: ", value=f"{votes} votes", inline=False)
+    for party, data in results.items():
+        president_tag = f"<@{data['president_discord_id']}>"
+        vp_tag = f"<@{data['vp_discord_id']}>"
+        votes = data['votes']
+
+        embed.add_field(
+            name=f"{party} Party:",
+            value=f"President: {president_tag} VP: {vp_tag} \n{votes} votes",
+            inline=False
+        )
 
     embed.set_footer(text="Thank you for participating in the election!")
     return embed
+
 
 
 # NOTE Helper functions
@@ -164,19 +187,16 @@ async def register_voter(interaction: discord.Interaction, voter_salt: str):
 @app_commands.describe(voter_id="Your voter ID.")
 @app_commands.describe(candidate="The party you are voting for.")
 async def vote(interaction: discord.Interaction, voter_id: str, candidate: str):
-    if candidate not in candidates:
-        await interaction.response.send_message(
-            f"Invalid candidate: `{candidate}`. Please choose from the provided options",
-            ephemeral=True
-        )
+    if not verify_voter_id(voter_id):
+        embed = create_invalid_voter_id_message()
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         return
 
-    if not verify_voter_id(voter_id):
-        await interaction.response.send_message(
-            "Invalid voter ID. Register to vote first with `/register`",
-            ephemeral=True
-        )
+    if candidate not in candidates:
+        embed = create_invalid_candidate_message()
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         return
+
 
     time_voted = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -199,7 +219,6 @@ async def vote(interaction: discord.Interaction, voter_id: str, candidate: str):
     voter_role = discord.utils.get(interaction.guild.roles, id=ROLE_ID)
     await interaction.user.add_roles(voter_role, reason="Voted in a TEAW election")
 
-    
 candidates = list(get_candidates().keys())
 @vote.autocomplete("candidate")
 async def candidate_autocomplete(
@@ -216,6 +235,7 @@ async def candidate_autocomplete(
 
 
 # NOTE Tasks
+@tasks.loop(seconds=300)
 async def update_message():
     channel = bot.get_channel(UPDATE_CHANNEL_ID)
     if channel is None:
@@ -231,17 +251,14 @@ async def update_message():
 
     try:
         if message_id:
-            # Try to edit the existing message
             message = await channel.fetch_message(message_id)
             await message.edit(embed=embed)
         else:
-            # Post a new message and save its ID
             message = await channel.send(embed=embed)
             with open(UPDATE_MESSAGE_FILE, "w") as file:
                 file.write(str(message.id))
 
     except discord.NotFound:    
-        # If the message ID is invalid, post a new message
         print("Message not found. Posting a new message")
 
         message = await channel.send(embed=embed)
@@ -250,6 +267,19 @@ async def update_message():
 
     except Exception as e:
         print(f"Error updating message: {e}")
+
+@tasks.loop(seconds=1)
+async def end_election() -> None:
+    if int(time.time()) > ELECTION_END_TIME:
+        update_message()
+        await bot.get_channel(UPDATE_CHANNEL_ID).send("The election has ended. These results are final!")
+
+        print("Election has ended. Exiting...")
+
+        bot.close()
+        sys.exit(0)
+
+
 
 # Init
 @bot.event
@@ -260,9 +290,9 @@ async def on_ready():
 
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="the TEAW Election"))
 
-    await update_message()
 
-    tasks.loop(seconds=500)(update_message).start()
+    update_message.start()
+    end_election.start()
 
     print("Bot is ready")
 

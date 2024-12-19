@@ -20,13 +20,27 @@ def get_votes_by_party(db_file=DB_FILE) -> dict:
         """)
         votes_by_party = cursor.fetchall()
 
-        votes = defaultdict(int)
-        for party, count in votes_by_party:
-            votes[party] = count
+        cursor.execute("""
+            SELECT party_name, president_discord_id, vp_discord_id
+            FROM candidates;
+        """)
+        candidate_data = cursor.fetchall()
 
-    sorted_votes = dict(sorted(votes.items(), key=lambda item: item[1], reverse=True))
+        votes = defaultdict(lambda: {"votes": 0, "president_discord_id": None, "vp_discord_id": None})
+        for party, president_id, vp_id in candidate_data:
+            votes[party]["president_discord_id"] = president_id
+            votes[party]["vp_discord_id"] = vp_id
+
+        for party, count in votes_by_party:
+            if party in votes:
+                votes[party]["votes"] = count
+
+        sorted_votes = dict(
+            sorted(votes.items(), key=lambda item: item[1]["votes"], reverse=True)
+        )
 
     return sorted_votes
+
 
 def determine_winner(db_file=DB_FILE) -> list[str]:
     with sqlite3.connect(db_file) as conn:
@@ -49,5 +63,7 @@ def determine_winner(db_file=DB_FILE) -> list[str]:
 
     return winners
 
-print(f"Winner: {determine_winner()} party")
-print(f"Votes by party: {get_votes_by_party()}")
+
+if __name__ == "__main__":
+    print(f"Winner: {determine_winner()} party")
+    print(f"Votes by party: {get_votes_by_party()}")
