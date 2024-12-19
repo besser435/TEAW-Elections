@@ -22,11 +22,11 @@ def get_votes_by_party(db_file=DB_FILE) -> dict:
 
         votes = defaultdict(int)
         for party, count in votes_by_party:
-
             votes[party] = count
 
-    return dict(votes)
+    sorted_votes = dict(sorted(votes.items(), key=lambda item: item[1], reverse=True))
 
+    return sorted_votes
 
 def determine_winner(db_file=DB_FILE) -> list[str]:
     with sqlite3.connect(db_file) as conn:

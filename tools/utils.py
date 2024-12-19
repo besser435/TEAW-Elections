@@ -115,7 +115,7 @@ if __name__ == "__main__":
     ballot_data = [
         #("1", "Carthage Restoration", "2021-10-01T00:00:00Z"),
         #("2", "Green", "2021-10-01T00:00:00Z"),
-        ("4", "Slommy", "2021-10-01T00:00:00Z")
+        ("5", "Slommy", "2021-10-01T00:00:00Z")
     ]
     populate_ballots(ballot_data=ballot_data)
 

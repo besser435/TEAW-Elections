@@ -7,17 +7,26 @@ import sqlite3
 import hashlib
 from datetime import datetime, timezone
 import os
+import sys
 import traceback
 import random
+import time 
 
 import bot_secrets
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-DB_FILE = "../../db/teaw_election_1.db"
+# Python not looking in parent directories for common files you might want to use is stupid
+sys.path.append("../")
+from common.results import get_votes_by_party
+
+
+
 BOT_TOKEN = bot_secrets.BOT_TOKEN
-UPDATES_CHANNEL = 1319130252739608727   # Channel ID for updates
-ROLE_ID = 1319149115543781489           # I voted sticker for Dec. 2024 election
+DB_FILE = "../../db/teaw_election_1.db"
+UPDATE_MESSAGE_FILE = "../../db/update_message.txt"
+ROLE_ID = 1319149115543781489   # I voted role for Dec. 2024 election
+UPDATE_CHANNEL_ID = 1319130252739608727
 
 
 intents = discord.Intents.all()
@@ -74,8 +83,24 @@ def create_vote_notification(time_voted) -> discord.Embed:
     embed.add_field(name="Vote Date", value=f"`{time_voted}`", inline=True)
     
     embed.set_thumbnail(url="https://emojicdn.elk.sh/🎉")
-    embed.set_footer(text="Thank you for keeping TEAW democratic, you have been given a voter role!")
+    embed.set_footer(text="Thank you for keeping TEAW democratic! You have been given a voter role!")
     return embed
+
+def election_results_message(results: dict) -> discord.Embed:
+    update_time = f"<t:{int(time.time())}:R>"
+
+    embed = discord.Embed(
+        title=f"TEAW Presidential Election Results as of {update_time}",
+        description="Updates every 5 minutes. \nVotes will stop being counted <t:1735369140:R>!",
+        color=discord.Color.blue()
+    )
+
+    for party, votes in results.items():
+        embed.add_field(name=f"{party} party: ", value=f"{votes} votes", inline=False)
+
+    embed.set_footer(text="Thank you for participating in the election!")
+    return embed
+
 
 # NOTE Helper functions
 def create_voter_id(user_id, time_registered, salt):
@@ -94,7 +119,6 @@ def verify_voter_id(voter_id: str) -> bool: # See note in README.md
         cursor = conn.cursor()
         cursor.execute("SELECT voter_id FROM voters WHERE voter_id = ?", (voter_id,))
         return cursor.fetchone() is not None
-
 
 
 
@@ -176,7 +200,7 @@ async def vote(interaction: discord.Interaction, voter_id: str, candidate: str):
     await interaction.user.add_roles(voter_role, reason="Voted in a TEAW election")
 
     
-candidates = list(get_candidates().keys())  # Convert to a list if not already
+candidates = list(get_candidates().keys())
 @vote.autocomplete("candidate")
 async def candidate_autocomplete(
     interaction: discord.Interaction,
@@ -192,12 +216,40 @@ async def candidate_autocomplete(
 
 
 # NOTE Tasks
-@tasks.loop(seconds=60)
 async def update_message():
-    # This will post a message in a channel if it does not exist. 
-    # It will then edit the message as the database gets updates.
-    pass
+    channel = bot.get_channel(UPDATE_CHANNEL_ID)
+    if channel is None:
+        print("Channel not found. Check the CHANNEL_ID")
+        return
 
+    message_id = None
+    if os.path.exists(UPDATE_MESSAGE_FILE):
+        with open(UPDATE_MESSAGE_FILE, "r") as file:
+            message_id = int(file.read().strip())
+
+    embed = election_results_message(get_votes_by_party())
+
+    try:
+        if message_id:
+            # Try to edit the existing message
+            message = await channel.fetch_message(message_id)
+            await message.edit(embed=embed)
+        else:
+            # Post a new message and save its ID
+            message = await channel.send(embed=embed)
+            with open(UPDATE_MESSAGE_FILE, "w") as file:
+                file.write(str(message.id))
+
+    except discord.NotFound:    
+        # If the message ID is invalid, post a new message
+        print("Message not found. Posting a new message")
+
+        message = await channel.send(embed=embed)
+        with open(UPDATE_MESSAGE_FILE, "w") as file:
+            file.write(str(message.id))
+
+    except Exception as e:
+        print(f"Error updating message: {e}")
 
 # Init
 @bot.event
@@ -207,5 +259,11 @@ async def on_ready():
     logging.info(f"Logged in as {bot.user.name}")
 
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="the TEAW Election"))
+
+    await update_message()
+
+    tasks.loop(seconds=500)(update_message).start()
+
+    print("Bot is ready")
 
 bot.run(BOT_TOKEN)
