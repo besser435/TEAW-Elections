@@ -107,7 +107,7 @@ if __name__ == "__main__":
     #drop(table="voters")
     #drop(table="ballots")
     #drop(table="candidates")
-    #initialize_database()
+    initialize_database()
 
     #populate_voters(voter_data=voter_data)
 
@@ -117,7 +117,7 @@ if __name__ == "__main__":
         #("2", "Green", "2021-10-01T00:00:00Z"),
         ("5", "Slommy", "2021-10-01T00:00:00Z")
     ]
-    populate_ballots(ballot_data=ballot_data)
+    #populate_ballots(ballot_data=ballot_data)
 
 
     candidates = [
@@ -130,7 +130,7 @@ if __name__ == "__main__":
         ("Carthage Restoration", "939380723494842408", "791861067470864436"),
         ("Freedom", "1120394930519556116", "308667250771230721")
     ]
-    #populate_candidates(candidate_data=candidates)
+    populate_candidates(candidate_data=candidates)
 
 
 
