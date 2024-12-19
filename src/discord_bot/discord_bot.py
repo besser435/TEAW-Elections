@@ -7,40 +7,46 @@ import sqlite3
 import hashlib
 from datetime import datetime, timezone
 import os
+import traceback
+import random
 
 import bot_secrets
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-DB_FILE = "../../db/TEAW_E_1.db"
-VOTE_FORM_URL = "https://forms.gle/fAtceQycitem1oCCA"
+DB_FILE = "../../db/teaw_election_1.db"
 BOT_TOKEN = bot_secrets.BOT_TOKEN
+UPDATES_CHANNEL = 1319130252739608727   # Channel ID for updates
+ROLE_ID = 1319149115543781489           # I voted sticker for Dec. 2024 election
 
-bot = commands.Bot(command_prefix="/", intents=discord.Intents.all())
+
+intents = discord.Intents.all()
+intents.members = True
+bot = commands.Bot(command_prefix="/", intents=intents)
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
+
 # NOTE Message embeds
-def create_voter_id_message(voter_id: str) -> discord.Embed:
+def create_voter_id_message(voter_id, time_registered: str) -> discord.Embed:
     embed = discord.Embed(
         title="Voter Registration Successful",
         description=f"""
         You have successfully registered to vote in the TEAW Presidential Election.
         
-        You can vote [here]({VOTE_FORM_URL}).
+        You can vote with the `/vote` command.
         """,
         color=discord.Color.green()
     )
-    embed.add_field(name="Your Voter ID", value=f"`{voter_id}`", inline=False)
+    embed.add_field(name="Your Voter ID", value=f"`{voter_id}`", inline=True)
+    embed.add_field(name="Registration Date", value=f"`{time_registered}`", inline=True)
     embed.add_field(
         name="Important Reminder",
-        value="Keep your voter ID safe. It is a secret and will be needed for voting. If someone else has your voter ID, they can vote on your behalf.",
+        value="Keep your Voter ID safe. It is a secret and will be needed for voting. If someone else has your voter ID, they can vote on your behalf.",
         inline=False
     )
-    embed.set_thumbnail(url="https://emojicdn.elk.sh/🎉")
-    embed.set_footer(text="Thank you for keeping TEAW democratic!")
     return embed
 
 def create_bad_salt_message() -> discord.Embed:
@@ -55,20 +61,47 @@ def create_bad_salt_message() -> discord.Embed:
     )
     return embed
 
-def create_vote_notification(ballot) -> discord.Embed:
-    # For successful_vote_notification()
-    pass
-
+def create_vote_notification(time_voted) -> discord.Embed:
+    embed = discord.Embed(
+        title="Vote Cast",
+        description=f"""
+        You have successfully cast your ballot to vote in the TEAW Presidential Election .
+        
+        Repeat votes will overwrite your previous vote.
+        """,
+        color=discord.Color.green()
+    )
+    embed.add_field(name="Vote Date", value=f"`{time_voted}`", inline=True)
+    
+    embed.set_thumbnail(url="https://emojicdn.elk.sh/🎉")
+    embed.set_footer(text="Thank you for keeping TEAW democratic, you have been given a voter role!")
+    return embed
 
 # NOTE Helper functions
 def create_voter_id(user_id, time_registered, salt):
     return hashlib.sha256(f"{user_id}{time_registered}{salt}".encode()).hexdigest()[:8]
 
+def get_candidates() -> dict:
+    with sqlite3.connect(DB_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT party_name, president_discord_id, vp_discord_id FROM candidates")
+        candidates = cursor.fetchall()
+
+    return {party_name: (president_id, vp_id) for party_name, president_id, vp_id in candidates}
+
+def verify_voter_id(voter_id: str) -> bool: # See note in README.md
+    with sqlite3.connect(DB_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT voter_id FROM voters WHERE voter_id = ?", (voter_id,))
+        return cursor.fetchone() is not None
+
+
+
 
 # NOTE Commands
 @bot.tree.command(name="register", description="Registers you to vote.")
 @app_commands.describe(voter_salt="A unique identifier for voter registration (minimum 4 characters). Do not share this value.")
-async def register(interaction: discord.Interaction, voter_salt: str):
+async def register_voter(interaction: discord.Interaction, voter_salt: str):
     if len(voter_salt) < 4:
         embed = create_bad_salt_message()
         return await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -81,11 +114,11 @@ async def register(interaction: discord.Interaction, voter_salt: str):
         cursor = conn.cursor()
 
         try:
-            cursor.execute("SELECT * FROM voters WHERE discord_id = ?", (discord_id,))
+            cursor.execute("SELECT voter_id, time_registered FROM voters WHERE discord_id = ?", (discord_id,))
             existing_voter = cursor.fetchone()
 
             if existing_voter:
-                embed = create_voter_id_message(existing_voter[0])
+                embed = create_voter_id_message(existing_voter[0], existing_voter[1])
                 await interaction.response.send_message(embed=embed, ephemeral=True)
             else:   # TODO: should maybe just allow users to create a new voter ID if their old one leaked or something. Ensure to delete the old one.
                 new_voter_id = create_voter_id(discord_id, time_registered, voter_salt)
@@ -96,11 +129,66 @@ async def register(interaction: discord.Interaction, voter_salt: str):
                 )
                 conn.commit()
 
-                embed = create_voter_id_message(new_voter_id)
+                embed = create_voter_id_message(new_voter_id, time_registered)
                 await interaction.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
+            print(traceback.format_exc())
             logger.error(f"Error registering voter: {e}")
             await interaction.response.send_message("An error occurred while registering. Please try again later.", ephemeral=True)
+
+@bot.tree.command(name="vote", description="Submits your vote for a political party.")
+@app_commands.describe(voter_id="Your voter ID.")
+@app_commands.describe(candidate="The party you are voting for.")
+async def vote(interaction: discord.Interaction, voter_id: str, candidate: str):
+    if candidate not in candidates:
+        await interaction.response.send_message(
+            f"Invalid candidate: `{candidate}`. Please choose from the provided options",
+            ephemeral=True
+        )
+        return
+
+    if not verify_voter_id(voter_id):
+        await interaction.response.send_message(
+            "Invalid voter ID. Register to vote first with `/register`",
+            ephemeral=True
+        )
+        return
+
+    time_voted = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    with sqlite3.connect(DB_FILE) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO ballots (voter_id, party, time_voted)
+            VALUES (?, ?, ?)
+            ON CONFLICT(voter_id) DO UPDATE SET
+                party = excluded.party,
+                time_voted = excluded.time_voted
+            """, (voter_id, candidate, time_voted)
+        )
+        conn.commit()
+
+    embed = create_vote_notification(time_voted)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    voter_role = discord.utils.get(interaction.guild.roles, id=ROLE_ID)
+    await interaction.user.add_roles(voter_role, reason="Voted in a TEAW election")
+
+    
+candidates = list(get_candidates().keys())  # Convert to a list if not already
+@vote.autocomplete("candidate")
+async def candidate_autocomplete(
+    interaction: discord.Interaction,
+    current: str
+) -> list[app_commands.Choice[str]]:
+    random.shuffle(candidates)  # Makes it more fair for each candidate
+    
+    return [
+        app_commands.Choice(name=candidate, value=candidate)
+        for candidate in candidates if current.lower() in candidate.lower()
+    ]
+
 
 
 # NOTE Tasks
@@ -108,11 +196,6 @@ async def register(interaction: discord.Interaction, voter_salt: str):
 async def update_message():
     # This will post a message in a channel if it does not exist. 
     # It will then edit the message as the database gets updates.
-    pass
-
-async def successful_vote_notification():
-    # This will DM the user who voted to confirm their vote.
-    # It will reply with their ballot.
     pass
 
 

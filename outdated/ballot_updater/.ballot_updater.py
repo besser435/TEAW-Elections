@@ -13,7 +13,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 
 CSV_FILE = "_ballots.csv"
-DB_FILE = "../../db/TEAW_E_1.db"
+DB_FILE = "../../db/teaw_election_1.db"
 
 # TODO: clean up the sheet, ensure that the data is valid
 def get_sheet() -> None:
