@@ -27,7 +27,8 @@ DB_FILE = "../../db/teaw_election_1.db"
 UPDATE_MESSAGE_FILE = "../../db/update_message.txt"
 ROLE_ID = 1319149115543781489   # I voted role for Dec. 2024 election
 UPDATE_CHANNEL_ID = 1319130252739608727
-ELECTION_END_TIME = 1735369140  # This is when the program will kill itself
+ELECTION_END_TIME = 1734937140  # This is when the program will kill itself
+
 
 intents = discord.Intents.all()
 intents.members = True
@@ -109,19 +110,24 @@ def election_results_message(results: dict) -> discord.Embed:
         color=discord.Color.blue()
     )
 
+    total_votes = sum(data["votes"] for data in results.values())
+
     for party, data in results.items():
         president_tag = f"<@{data['president_discord_id']}>"
         vp_tag = f"<@{data['vp_discord_id']}>"
-        votes = data['votes']
+        votes = data["votes"]
+
+        percentage = (votes / total_votes) * 100 if total_votes > 0 else 0
 
         embed.add_field(
             name=f"{party} Party:",
-            value=f"President: {president_tag} VP: {vp_tag} \n{votes} votes",
+            value=f"President: {president_tag} VP: {vp_tag} \n{votes} votes ({percentage:.2f}%)",
             inline=False
         )
 
     embed.set_footer(text="Thank you for participating in the election!")
     return embed
+
 
 
 
