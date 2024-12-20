@@ -103,11 +103,21 @@ def drop(db_file=DB_FILE, table=None):
     print(f"Dropped table {table}")
 
 
+def remove_candidate(db_file=DB_FILE, party_name=None):
+    with sqlite3.connect(db_file) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM candidates WHERE party_name = ?", (party_name,))
+
+        conn.commit()
+    print(f"Removed candidate {party_name}")
+ 
+
 if __name__ == "__main__":
     #drop(table="voters")
     #drop(table="ballots")
     #drop(table="candidates")
-    initialize_database()
+    #initialize_database()
 
     #populate_voters(voter_data=voter_data)
 
@@ -122,7 +132,7 @@ if __name__ == "__main__":
 
     candidates = [
         ("Weed", "707416969372106753", "414509303605755904"),
-        ("Irish Republican", "178891657448521738", "568799388651094026"),
+        #("Irish Republican", "178891657448521738", "568799388651094026"),
         ("Green", "468034405278023690", "232014294303113216"),
         ("Slommy", "463641134896250901", "875854686027133040"),
         ("Communist", "575835458106294272", "307777393160880140"),
@@ -130,7 +140,9 @@ if __name__ == "__main__":
         ("Carthage Restoration", "939380723494842408", "791861067470864436"),
         ("Freedom", "1120394930519556116", "308667250771230721")
     ]
-    populate_candidates(candidate_data=candidates)
+    #populate_candidates(candidate_data=candidates)
+
+    remove_candidate(party_name="Irish Republican")
 
 
 
