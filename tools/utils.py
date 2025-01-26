@@ -86,6 +86,10 @@ def populate_ballots(db_file=DB_FILE, ballot_data=None):
             cursor.execute("""
                 INSERT INTO ballots (voter_id, party, time_voted)
                 VALUES (?, ?, ?)
+                ON CONFLICT(voter_id) DO UPDATE SET
+                party = excluded.party,
+                time_voted = excluded.time_voted
+                
             """, ballot)
 
         conn.commit()
@@ -123,11 +127,29 @@ if __name__ == "__main__":
 
 
     ballot_data = [
-        #("1", "Carthage Restoration", "2021-10-01T00:00:00Z"),
-        #("2", "Green", "2021-10-01T00:00:00Z"),
-        ("5", "Slommy", "2021-10-01T00:00:00Z")
+        ("c2828f3d", "Green", "2024-12-20T07:04:32Z"),
+        ("3d8a02b1", "Green", "2024-12-20T07:09:43Z"),
+        ("5398718a", "Communist", "2024-12-20T07:12:30Z"),
+        ("d8b043ed", "Carthage Restoration", "2024-12-20T07:45:47Z"),
+        ("b6573e67", "Communist", "2024-12-20T10:04:54Z"),
+        ("57897edc", "Democrats For Christ", "2024-12-20T11:38:22Z"),
+        ("387ad912", "Carthage Restoration", "2024-12-20T11:53:23Z"),
+        ("1831665a", "Green", "2024-12-20T11:54:45Z"),
+        ("cb269d70", "Communist", "2024-12-20T13:33:20Z"),
+        ("6d4d788c", "Carthage Restoration", "2024-12-20T14:07:34Z"),
+        ("fcb14a99", "Communist", "2024-12-20T14:46:09Z"),
+        ("0883161d", "Green", "2024-12-20T15:04:51Z"),
+        ("f8b49218", "Communist", "2024-12-20T15:35:12Z"),
+        ("3636f5ac", "Communist", "2024-12-20T15:52:50Z"),
+        ("ebea8e14", "Green", "2024-12-20T19:58:33Z"),
+        ("2dadb04d", "Green", "2024-12-21T03:19:48Z"),
+        ("27b8e578", "Green", "2024-12-23T04:12:41Z"),
+        ("70aed530", "Green", "2024-12-23T05:26:45Z"),
+        ("32102bd8", "Communist", "2024-12-23T06:24:02Z"),
+        ("d3a558d0", "Communist", "2024-12-23T06:26:39Z")
+
     ]
-    #populate_ballots(ballot_data=ballot_data)
+    populate_ballots(ballot_data=ballot_data)
 
 
     candidates = [
@@ -142,7 +164,7 @@ if __name__ == "__main__":
     ]
     #populate_candidates(candidate_data=candidates)
 
-    remove_candidate(party_name="Irish Republican")
+    #remove_candidate(party_name="Irish Republican")
 
 
 

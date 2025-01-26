@@ -277,8 +277,8 @@ async def update_message():
 @tasks.loop(seconds=1)
 async def end_election() -> None:
     if int(time.time()) > ELECTION_END_TIME:
-        update_message()
-        await bot.get_channel(UPDATE_CHANNEL_ID).send("The election has ended. These results are final!")
+        await update_message()
+        #await bot.get_channel(UPDATE_CHANNEL_ID).send("The election has ended. These results are final!")
 
         print("Election has ended. Exiting...")
 
